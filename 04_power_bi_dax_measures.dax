@@ -1,0 +1,182 @@
+
+-- NYC 311 SERVICE REQUEST ANALYTICS
+-- POWER BI DAX MEASURES
+-- Source table: 'query9 1'
+
+
+-- 1. Average Closure Time
+
+Average Closure Time =
+AVERAGEX(
+    FILTER(
+        'query9 1',
+        'query9 1'[status] = "Closed"
+            && NOT(ISBLANK('query9 1'[closed_date]))
+    ),
+    DATEDIFF(
+        'query9 1'[created_date],
+        'query9 1'[closed_date],
+        MINUTE
+    ) / 60
+)
+
+
+-- 2. Avg Closure Period Label
+
+Avg Closure Period Label =
+IF(
+    ISBLANK([Avg Closure Time Change %]),
+    BLANK(),
+    "vs previous period"
+)
+
+
+-- 3. Avg Closure Time Change %
+
+Avg Closure Time Change % =
+DIVIDE(
+    [Average Closure Time] - [Previous Period Avg Closure Time],
+    [Previous Period Avg Closure Time]
+)
+
+
+-- 4. Avg Closure Time Change Short
+
+Avg Closure Time Change Short =
+VAR Change = [Avg Closure Time Change %]
+RETURN
+IF(
+    ISBLANK(Change),
+    BLANK(),
+    IF(Change <= 0, "↓ ", "↑ ")
+        & FORMAT(ABS(Change), "0.0%")
+)
+
+
+-- 5. Closed Service Requests
+
+Closed Service Requests =
+CALCULATE(
+    COUNTROWS('query9 1'),
+    'query9 1'[status] = "Closed"
+)
+
+
+-- 6. Closure Rate
+
+Closure Rate =
+DIVIDE(
+    [Closed Service Requests],
+    [Total Service Requests],
+    0
+)
+
+
+-- 7. MoM Request Change %
+
+MoM Request Change % =
+VAR CurrentRequests = [Total Service Requests]
+VAR PreviousRequests = [Previous Month Requests]
+RETURN
+DIVIDE(
+    CurrentRequests - PreviousRequests,
+    PreviousRequests
+)
+
+
+-- 8. MoM Request Change Label
+
+MoM Request Change Label =
+VAR Change = [MoM Request Change %]
+RETURN
+IF(
+    ISBLANK(Change),
+    BLANK(),
+    IF(Change >= 0, "↑ ", "↓ ")
+        & FORMAT(ABS(Change), "0.0%")
+        & " vs previous month"
+)
+
+
+-- 9. MoM Request Change Short
+
+MoM Request Change Short =
+VAR Change = [MoM Request Change %]
+RETURN
+IF(
+    ISBLANK(Change),
+    BLANK(),
+    IF(Change >= 0, "↑ ", "↓ ")
+        & FORMAT(ABS(Change), "0.0%")
+)
+
+
+-- 10. Open Request Rate
+
+Open Request Rate =
+DIVIDE(
+    [Open Service Requests],
+    [Total Service Requests]
+)
+
+
+-- 11. Open Service Requests
+
+Open Service Requests =
+CALCULATE(
+    COUNTROWS('query9 1'),
+    'query9 1'[status] <> "Closed"
+)
+
+
+-- 12. Previous Month Requests
+
+Previous Month Requests =
+VAR CurrentMaxDate = MAX('query9 1'[created_date])
+VAR PreviousMonthStart =
+    DATE(YEAR(EOMONTH(CurrentMaxDate, -2)), MONTH(EOMONTH(CurrentMaxDate, -2)), 1)
+VAR PreviousMonthEnd =
+    EOMONTH(CurrentMaxDate, -1)
+RETURN
+CALCULATE(
+    [Total Service Requests],
+    REMOVEFILTERS('query9 1'[created_date]),
+    'query9 1'[created_date] >= PreviousMonthStart,
+    'query9 1'[created_date] <= PreviousMonthEnd
+)
+
+
+-- 13. Previous Period Avg Closure Time
+
+Previous Period Avg Closure Time =
+VAR StartDate =
+    MINX(
+        ALLSELECTED('query9 1'[created_date]),
+        'query9 1'[created_date]
+    )
+VAR EndDate =
+    MAXX(
+        ALLSELECTED('query9 1'[created_date]),
+        'query9 1'[created_date]
+    )
+VAR PeriodDays =
+    DATEDIFF(StartDate, EndDate, DAY) + 1
+RETURN
+CALCULATE(
+    [Average Closure Time],
+    REMOVEFILTERS('query9 1'[created_date]),
+    'query9 1'[created_date] >= StartDate - PeriodDays,
+    'query9 1'[created_date] < StartDate
+)
+
+
+-- 14. Previous Period Test
+
+Previous Period Test =
+[Previous Period Avg Closure Time]
+
+
+-- 15. Total Service Requests
+
+Total Service Requests =
+COUNTROWS('query9 1')
